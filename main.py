@@ -1,4 +1,3 @@
-
 from vpython import *
 import math
 import json
@@ -7,7 +6,7 @@ import json
 G = 6.67430e-11  # Gravitational constant
 SCALE_FACTOR_PLANET_RADIUS = 1000
 SCALE_FACTOR_SUN_RADIUS = 10
-SCALE_FACTOR_MOON_RADIUS = 1000
+SCALE_FACTOR_MOON_RADIUS = 5000 # Increased for visibility
 
 # Load data from JSON
 with open('solar/sun.json') as f:
@@ -118,16 +117,16 @@ def main():
         planet_name = menu.selected
         if planet_name == "Free":
             scene.camera.follow(None)
-        else:
+        elif planet_name in bodies:
             scene.camera.follow(bodies[planet_name])
 
     planet_names = ["Free"] + list(bodies.keys())
     menu(choices=planet_names, bind=follow_planet, pos=scene.title_anchor)
 
     # Simulation loop
-    dt = 3600  # 1 hour in seconds
+    dt = 600  # 10 minutes in seconds
     while True:
-        rate(200)  # Limit the loop rate
+        rate(1000)  # Increased rate for smoother animation
 
         # Update forces
         all_bodies = list(bodies.values()) + [sun]
@@ -140,7 +139,8 @@ def main():
                 if i == j: continue
                 body2 = all_bodies[j]
                 r = body1.pos - body2.pos
-                body1.force += -G * body2.mass * body1.mass * r.hat / mag2(r)
+                if mag(r) > 0: # Avoid division by zero if bodies collide
+                    body1.force += -G * body2.mass * body1.mass * r.hat / mag2(r)
 
         # Update positions
         for body in bodies.values():
