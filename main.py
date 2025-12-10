@@ -1,5 +1,7 @@
+
 from vpython import *
 import math
+import json
 
 # Constants
 G = 6.67430e-11  # Gravitational constant
@@ -7,24 +9,12 @@ SCALE_FACTOR_PLANET_RADIUS = 1000
 SCALE_FACTOR_SUN_RADIUS = 10
 SCALE_FACTOR_MOON_RADIUS = 1000
 
-# Data for celestial bodies
-# Data format: [mass (kg), radius (m), semi-major axis (m), eccentricity, orbital inclination (deg), axial tilt (deg), color]
-celestial_data = {
-    "Sun": [1.989e30, 6.9634e8, 0, 0, 0, 0, color.yellow],
-    "Mercury": [3.301e23, 2.440e6, 5.79e10, 0.205, 7.0, 0.01, color.gray(0.5)],
-    "Venus": [4.867e24, 6.052e6, 1.082e11, 0.007, 3.4, 177.4, color.orange],
-    "Earth": [5.972e24, 6.371e6, 1.496e11, 0.017, 0.0, 23.5, color.blue],
-    "Mars": [6.417e23, 3.389e6, 2.279e11, 0.094, 1.9, 25.2, color.red],
-    "Jupiter": [1.898e27, 6.991e7, 7.786e11, 0.049, 1.3, 3.1, color.brown],
-    "Saturn": [5.683e26, 5.823e7, 1.4335e12, 0.057, 2.5, 26.7, color.yellow],
-    "Uranus": [8.681e25, 2.536e7, 2.8725e12, 0.046, 0.8, 97.8, color.cyan],
-    "Neptune": [1.024e26, 2.462e7, 4.4951e12, 0.011, 1.8, 28.3, color.blue],
-    "Pluto": [1.309e22, 1.188e6, 5.9064e12, 0.244, 17.2, 122.5, color.gray(0.7)]
-}
+# Load data from JSON
+with open('solar/sun.json') as f:
+    data = json.load(f)
+    celestial_data = data['celestial_data']
+    moon_data = data['moon_data']
 
-moon_data = {
-    "Moon": [7.342e22, 1.737e6, 3.844e8, 0.0549, 5.1, color.gray(0.8)]
-}
 
 class CelestialBody(sphere):
     def __init__(self, name, mass, radius, color, pos, velocity, axis):
@@ -41,9 +31,15 @@ def main():
 
     # Create celestial bodies
     bodies = {}
-    sun_mass = celestial_data["Sun"][0]
+    sun_mass = celestial_data["Sun"]['mass']
     for name, data in celestial_data.items():
-        mass, radius, a, e, incl, tilt, col = data
+        mass = data['mass']
+        radius = data['radius']
+        a = data['semi_major_axis']
+        e = data['eccentricity']
+        incl = data['orbital_inclination']
+        tilt = data['axial_tilt']
+        col = vector(data['color'][0], data['color'][1], data['color'][2])
         
         axis = vector(0,1,0).rotate(angle=radians(tilt), axis=vector(0,0,1))
 
@@ -76,7 +72,13 @@ def main():
 
     # Create moons
     for name, data in moon_data.items():
-        mass, radius, a, e, incl, col = data
+        mass = data['mass']
+        radius = data['radius']
+        a = data['semi_major_axis']
+        e = data['eccentricity']
+        incl = data['orbital_inclination']
+        col = vector(data['color'][0], data['color'][1], data['color'][2])
+
         radius *= SCALE_FACTOR_MOON_RADIUS
         
         # Position and velocity relative to Earth
@@ -102,8 +104,6 @@ def main():
 
 
     sun = bodies.pop("Sun")
-    planets = [p for p in bodies.values() if p.name not in moon_data]
-    moons = [m for m in bodies.values() if m.name in moon_data]
     
     # Add rings to Saturn
     saturn = bodies["Saturn"]
@@ -113,6 +113,16 @@ def main():
                         thickness=10,
                         color=saturn.color)
 
+    # Camera control
+    def follow_planet(menu):
+        planet_name = menu.selected
+        if planet_name == "Free":
+            scene.camera.follow(None)
+        else:
+            scene.camera.follow(bodies[planet_name])
+
+    planet_names = ["Free"] + list(bodies.keys())
+    menu(choices=planet_names, bind=follow_planet, pos=scene.title_anchor)
 
     # Simulation loop
     dt = 3600  # 1 hour in seconds
@@ -120,17 +130,17 @@ def main():
         rate(200)  # Limit the loop rate
 
         # Update forces
-        for body1 in bodies.values():
+        all_bodies = list(bodies.values()) + [sun]
+        for i in range(len(all_bodies)):
+            body1 = all_bodies[i]
+            if body1.name == 'Sun': continue
             body1.force = vector(0, 0, 0)
-            # Force of Sun
-            r = body1.pos - sun.pos
-            body1.force += -G * sun.mass * body1.mass * r.hat / mag2(r)
 
-            # Force of other bodies
-            for body2 in bodies.values():
-                if body1 is not body2:
-                    r = body1.pos - body2.pos
-                    body1.force += -G * body2.mass * body1.mass * r.hat / mag2(r)
+            for j in range(len(all_bodies)):
+                if i == j: continue
+                body2 = all_bodies[j]
+                r = body1.pos - body2.pos
+                body1.force += -G * body2.mass * body1.mass * r.hat / mag2(r)
 
         # Update positions
         for body in bodies.values():

@@ -47,7 +47,7 @@ This project contains a 3D simulation of the solar system, built using VPython. 
 
 3.  **Run the simulation:**
     ```bash
-    python solar/main.py
+    python main.py
     ```
 
 The VPython window will open and the simulation will start.
