@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 5 python:*)",
+      "Bash(exit 0)",
+      "WebFetch(domain:ssd.jpl.nasa.gov)",
+      "WebFetch(domain:science.nasa.gov)",
+      "WebFetch(domain:nssdc.gsfc.nasa.gov)",
+      "WebSearch",
+      "Bash(.venvScriptspython.exe -c \"import vpython; print(''VPython version:'', vpython.__version__)\")",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

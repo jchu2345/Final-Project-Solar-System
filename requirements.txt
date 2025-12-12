@@ -1,0 +1,10 @@
+# Solar System Simulation Requirements
+# Python 3.8 or higher required
+
+# VPython for 3D visualization
+# Provides sphere, vector, canvas, and other 3D graphics primitives
+vpython>=7.6.0
+
+# NumPy for numerical operations (dependency of VPython)
+# Used for efficient array operations if needed for extensions
+numpy>=1.19.0
