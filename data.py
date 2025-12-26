@@ -35,6 +35,9 @@ SUN_MASS_KG = 1.9885e30
 # Accessed: 2025-12-11
 SUN_RADIUS_M = 6.96340e8
 
+# Sun texture (built-in textures don't work well for an emissive sun)
+SUN_TEXTURE = None
+
 # =============================================================================
 # PLANETARY MASSES (kg)
 # =============================================================================
@@ -249,9 +252,9 @@ DISTANCE_SCALE = 2.0 / AU_TO_METERS
 RADIUS_SCALE = DISTANCE_SCALE
 
 # Time scale factor (real seconds per simulation second)
-# 1 simulation second = 10 minutes
-# This provides smooth animation while maintaining accuracy
-TIME_SCALE = 600  # 10 minutes in seconds
+# 1 simulation second = 5 minutes
+# A smaller timestep increases accuracy, reducing long-term energy drift.
+TIME_SCALE = 300  # 5 minutes in seconds
 
 # =============================================================================
 # DATA SOURCES REGISTRY
@@ -299,7 +302,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': MERCURY_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': MERCURY_ARG_PERIAPSIS_DEG,
         'period_s': MERCURY_PERIOD_S,
-        'color': (0.7, 0.7, 0.7)  # Gray
+        'color': (0.7, 0.7, 0.7),
+        'texture': "vpython.rock"
     },
     'Venus': {
         'mass_kg': VENUS_MASS_KG,
@@ -310,7 +314,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': VENUS_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': VENUS_ARG_PERIAPSIS_DEG,
         'period_s': VENUS_PERIOD_S,
-        'color': (0.9, 0.7, 0.4)  # Yellowish
+        'color': (0.9, 0.7, 0.4),
+        'texture': "vpython.gravel"
     },
     'Earth': {
         'mass_kg': EARTH_MASS_KG,
@@ -321,7 +326,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': EARTH_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': EARTH_ARG_PERIAPSIS_DEG,
         'period_s': EARTH_PERIOD_S,
-        'color': (0.2, 0.4, 0.8)  # Blue
+        'color': (0.2, 0.4, 0.8),
+        'texture': "vpython.earth"
     },
     'Mars': {
         'mass_kg': MARS_MASS_KG,
@@ -332,7 +338,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': MARS_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': MARS_ARG_PERIAPSIS_DEG,
         'period_s': MARS_PERIOD_S,
-        'color': (0.8, 0.3, 0.1)  # Red
+        'color': (0.8, 0.3, 0.1),
+        'texture': "vpython.rough"
     },
     'Jupiter': {
         'mass_kg': JUPITER_MASS_KG,
@@ -343,7 +350,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': JUPITER_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': JUPITER_ARG_PERIAPSIS_DEG,
         'period_s': JUPITER_PERIOD_S,
-        'color': (0.8, 0.6, 0.4)  # Orange-brown
+        'color': (0.8, 0.6, 0.4),
+        'texture': "vpython.wood"
     },
     'Saturn': {
         'mass_kg': SATURN_MASS_KG,
@@ -354,7 +362,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': SATURN_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': SATURN_ARG_PERIAPSIS_DEG,
         'period_s': SATURN_PERIOD_S,
-        'color': (0.9, 0.8, 0.6)  # Pale yellow
+        'color': (0.9, 0.8, 0.6),
+        'texture': "vpython.wood"
     },
     'Uranus': {
         'mass_kg': URANUS_MASS_KG,
@@ -365,7 +374,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': URANUS_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': URANUS_ARG_PERIAPSIS_DEG,
         'period_s': URANUS_PERIOD_S,
-        'color': (0.5, 0.8, 0.8)  # Cyan
+        'color': (0.5, 0.8, 0.8),
+        'texture': "vpython.granite"
     },
     'Neptune': {
         'mass_kg': NEPTUNE_MASS_KG,
@@ -376,7 +386,8 @@ PLANETS_DATA = {
         'long_asc_node_deg': NEPTUNE_LONG_ASC_NODE_DEG,
         'arg_periapsis_deg': NEPTUNE_ARG_PERIAPSIS_DEG,
         'period_s': NEPTUNE_PERIOD_S,
-        'color': (0.2, 0.3, 0.8)  # Deep blue
+        'color': (0.2, 0.3, 0.8),
+        'texture': "vpython.granite"
     }
 }
 
@@ -388,6 +399,7 @@ MOON_DATA = {
     'eccentricity': MOON_ECCENTRICITY,
     'inclination_deg': MOON_INCLINATION_DEG,
     'period_s': MOON_PERIOD_S,
-    'color': (0.8, 0.8, 0.8),  # Light gray
-    'parent': 'Earth'  # Special flag indicating Moon orbits Earth
+    'color': (0.8, 0.8, 0.8),
+    'parent': 'Earth',
+    'texture': "vpython.rock"
 }

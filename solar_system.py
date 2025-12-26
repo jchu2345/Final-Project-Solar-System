@@ -10,11 +10,12 @@ Date: 2025-12-11
 """
 
 from vpython import (
-    vector, sphere, canvas, rate, color, mag, norm, keysdown, button, wtext, curve
+    vector, sphere, canvas, rate, color, mag, norm, keysdown, button, wtext, curve,
+    graph, gcurve, textures
 )
 import math
 from data import (
-    GRAVITATIONAL_CONSTANT, SUN_MASS_KG, SUN_RADIUS_M,
+    GRAVITATIONAL_CONSTANT, SUN_MASS_KG, SUN_RADIUS_M, SUN_TEXTURE,
     PLANETS_DATA, MOON_DATA, AU_TO_METERS, DISTANCE_SCALE, RADIUS_SCALE, TIME_SCALE
 )
 
@@ -30,10 +31,14 @@ class CelestialBody:
         velocity: Velocity vector in m/s (VPython vector)
         sphere: VPython sphere object for visualization
         trail: List of previous positions for orbit visualization
+        parent_body: The body this object orbits (e.g., Sun for Earth)
+        initial_specific_angular_momentum: h = |r x v| at start
+        initial_semimajor_axis: Orbital semi-major axis 'a' at start
+        error_label: VPython wtext object for displaying error metrics
     """
 
     def __init__(self, name, mass_kg, radius_m, position_m, velocity_m_s,
-                 body_color, make_trail=True):
+                 body_color, texture=None, make_trail=True):
         """
         Initialize a celestial body.
 
@@ -44,6 +49,7 @@ class CelestialBody:
             position_m: Initial position vector in meters
             velocity_m_s: Initial velocity vector in m/s
             body_color: RGB tuple for body color
+            texture: URL or path to a texture file
             make_trail: Whether to show orbital trail
         """
         self.name = name
@@ -52,13 +58,32 @@ class CelestialBody:
         self.velocity = velocity_m_s  # m/s
         self.acceleration = vector(0, 0, 0)  # m/s^2
 
+        # Physics validation attributes
+        self.parent_body = None
+        self.initial_specific_angular_momentum = None
+        self.initial_semimajor_axis = None
+        self.error_label = None
+
+        # A mapping from string names to VPython texture objects
+        vpython_textures = {
+            "vpython.earth": textures.earth,
+            "vpython.rock": textures.rock,
+            "vpython.gravel": textures.gravel,
+            "vpython.rough": textures.rough,
+            "vpython.wood": textures.wood,
+            "vpython.granite": textures.granite
+        }
+
+        # Determine texture
+        body_texture = vpython_textures.get(texture)
+
         # Create VPython sphere for visualization
-        # TRUE SCALE - no artificial size adjustments
         self.sphere = sphere(
             pos=position_m * DISTANCE_SCALE,
             radius=radius_m * RADIUS_SCALE,
             color=vector(*body_color),
-            make_trail=False  # We'll use custom curve trails instead
+            make_trail=False,  # We'll use custom curve trails instead
+            texture=body_texture
         )
 
         # Create orbital path curve if needed
@@ -73,6 +98,9 @@ class CelestialBody:
         # Special rendering for the Sun
         if name == "Sun":
             self.sphere.emissive = True
+            # For emissive objects, color should be white to show texture properly
+            if body_texture:
+                 self.sphere.color = color.white
 
     def update_position(self, dt):
         """
@@ -368,7 +396,8 @@ def create_solar_system():
         radius_m=SUN_RADIUS_M,
         position_m=vector(0, 0, 0),
         velocity_m_s=vector(0, 0, 0),
-        body_color=(1, 1, 0),  # Yellow
+        body_color=(1, 1, 0),  # Base color if texture fails
+        texture=SUN_TEXTURE,
         make_trail=False
     )
     bodies.append(sun)
@@ -392,6 +421,7 @@ def create_solar_system():
             position_m=position,
             velocity_m_s=velocity,
             body_color=data['color'],
+            texture=data.get('texture'),
             make_trail=True
         )
         bodies.append(planet)
@@ -418,11 +448,63 @@ def create_solar_system():
             position_m=moon_position,
             velocity_m_s=moon_velocity,
             body_color=MOON_DATA['color'],
+            texture=MOON_DATA.get('texture'),
             make_trail=True
         )
         bodies.append(moon)
+    
+    # Initialize data needed for Kepler's laws validation
+    initialize_keplerian_validation(bodies)
 
     return bodies
+
+
+def initialize_keplerian_validation(bodies):
+    """
+    Calculate and store initial orbital parameters for validation against Kepler's Laws.
+    - 2nd Law: Conservation of angular momentum (equal areas in equal time).
+    - 3rd Law: Conservation of orbital energy / semi-major axis.
+    """
+    # Find Sun and Earth to use as parent bodies
+    sun = next((b for b in bodies if b.name == 'Sun'), None)
+    earth = next((b for b in bodies if b.name == 'Earth'), None)
+
+    for body in bodies:
+        if body.name == 'Sun':
+            continue  # Sun doesn't orbit anything in this model
+
+        parent = None
+        if body.name == 'Moon':
+            parent = earth
+        else:
+            parent = sun
+        
+        if parent is None:
+            continue
+
+        body.parent_body = parent
+        
+        # Calculate initial parameters relative to the parent body
+        r_vec = body.position - parent.position
+        v_vec = body.velocity - parent.velocity
+        r_mag = mag(r_vec)
+        v_mag_sq = mag(v_vec)**2
+
+        # Kepler's 2nd Law: Specific Angular Momentum h = |r x v|
+        # This value should be conserved for a perfect two-body orbit.
+        h_vector = r_vec.cross(v_vec)
+        body.initial_specific_angular_momentum = mag(h_vector)
+
+        # Kepler's 3rd Law is tied to orbital energy. We check conservation of the semi-major axis 'a'.
+        # Specific Orbital Energy: E = v^2/2 - GM/r
+        # Semi-major axis: a = -GM / (2E)
+        mu = GRAVITATIONAL_CONSTANT * (parent.mass + body.mass)
+        specific_energy = v_mag_sq / 2 - mu / r_mag
+        
+        if abs(specific_energy) > 1e-6:
+             body.initial_semimajor_axis = -mu / (2 * specific_energy)
+        else:
+            body.initial_semimajor_axis = float('inf') # Parabolic/hyperbolic case
 
 
 def setup_scene():
@@ -441,8 +523,11 @@ def setup_scene():
         range=0.02  # Start zoomed in on Sun (true scale is tiny!)
     )
 
+    # Add physics validation title
+    scene.append_to_caption("\n<b>PHYSICS VALIDATION (KEPLER'S LAWS)</b>\n")
+
     # Add instructions
-    scene.caption = """
+    scene.append_to_caption("""
     Solar System - 100% TRUE SCALE + 3D ORBITAL MECHANICS
 
     ALL VALUES 100% REAL NASA DATA:
@@ -473,12 +558,50 @@ def setup_scene():
     - Right-drag: Rotate | Ctrl+drag: Pan
 
     Time: 1 sim sec = 10 minutes | Thin lines = orbital paths
-    """
+    """)
 
     return scene
 
 
-def simulation_loop(bodies, dt_seconds, scene, speed_multiplier=1.0):
+def setup_plots():
+    """
+    Create a graph window for plotting real-time simulation data.
+    """
+    g = graph(
+        title="<b>Real-time Physics Validation</b>",
+        xtitle="Time (years)",
+        ytitle="Error (%)",
+        width=800,
+        height=400,
+        align='right'
+    )
+    
+    total_energy_curve = gcurve(
+        graph=g,
+        color=color.red,
+        label="Total System Energy Drift (%)"
+    )
+    
+    earth_h_error_curve = gcurve(
+        graph=g,
+        color=color.blue,
+        label="Earth Ang. Momentum Error (2nd Law) (%)"
+    )
+
+    earth_a_error_curve = gcurve(
+        graph=g,
+        color=color.green,
+        label="Earth Semi-Major Axis Error (3rd Law) (%)"
+    )
+    
+    return {
+        "total_energy": total_energy_curve,
+        "earth_h_error": earth_h_error_curve,
+        "earth_a_error": earth_a_error_curve,
+    }
+
+
+def simulation_loop(bodies, dt_seconds, scene, plots):
     """
     Main simulation loop using Velocity Verlet integration.
 
@@ -486,10 +609,15 @@ def simulation_loop(bodies, dt_seconds, scene, speed_multiplier=1.0):
         bodies: List of CelestialBody objects
         dt_seconds: Time step in real seconds
         scene: VPython canvas object for camera control
-        speed_multiplier: Speed up factor for visualization
+        plots: Dictionary of gcurve objects for plotting
     """
     # Calculate initial energy for monitoring
     initial_energy = calculate_total_energy(bodies)
+
+    # Setup for Kepler's Laws validation display
+    # A single wtext object is used and updated dynamically.
+    validation_wtext = wtext(text="", pos=scene.caption_anchor)
+    scene.append_to_caption("\n") # Add spacing
 
     simulation_time = 0  # seconds
     frame_count = 0
@@ -555,15 +683,71 @@ def simulation_loop(bodies, dt_seconds, scene, speed_multiplier=1.0):
             simulation_time += dt_seconds
             frame_count += 1
 
-            # Print status every 100 frames
-            if frame_count % 100 == 0:
+            # Update status and physics validation every 20 frames for performance
+            if frame_count % 20 == 0:
+                # --- Total System Energy (Integrator Stability) ---
                 current_energy = calculate_total_energy(bodies)
                 energy_change = abs((current_energy - initial_energy) / initial_energy) * 100
                 days_elapsed = simulation_time / 86400
                 years_elapsed = days_elapsed / 365.25
+                
+                # Update console output less frequently
+                if frame_count % 100 == 0:
+                    print(f"Time: {years_elapsed:.4f} years ({days_elapsed:.2f} days) | "
+                          f"Total Energy Drift: {energy_change:.6f}%")
+                
+                plots["total_energy"].plot(years_elapsed, energy_change)
+                
+                # --- Per-Body Keplerian Validation ---
+                max_error_body = None
+                max_h_error = -1
 
-                print(f"Time: {years_elapsed:.4f} years ({days_elapsed:.2f} days) | "
-                      f"Energy drift: {energy_change:.6f}%")
+                # First, calculate error for all bodies
+                all_body_errors = {}
+                for body in bodies:
+                    if body.parent_body is not None:
+                        r_vec = body.position - body.parent_body.position
+                        v_vec = body.velocity - body.parent_body.velocity
+                        r_mag = mag(r_vec)
+                        v_mag_sq = mag(v_vec)**2
+
+                        h_current = mag(r_vec.cross(v_vec))
+                        h_error = 100 * abs(h_current - body.initial_specific_angular_momentum) / body.initial_specific_angular_momentum
+
+                        mu = GRAVITATIONAL_CONSTANT * (body.parent_body.mass + body.mass)
+                        specific_energy = v_mag_sq / 2 - mu / r_mag
+                        a_current = -mu / (2 * specific_energy) if abs(specific_energy) > 1e-6 else float('inf')
+                        a_error = 100 * abs(a_current - body.initial_semimajor_axis) / body.initial_semimajor_axis if body.initial_semimajor_axis > 0 else 0
+                        
+                        all_body_errors[body.name] = (h_error, a_error)
+
+                        if h_error > max_h_error:
+                            max_h_error = h_error
+                            max_error_body = body
+                        
+                        # Update plots for specific bodies
+                        if body.name == "Earth":
+                            plots["earth_h_error"].plot(years_elapsed, h_error)
+                            plots["earth_a_error"].plot(years_elapsed, a_error)
+
+                
+                # --- Update On-Screen Text ---
+                body_to_display = None
+                if camera_lock_body is not None and camera_lock_body.parent_body is not None:
+                    # If camera is locked, show info for that body
+                    body_to_display = camera_lock_body
+                elif max_error_body is not None:
+                    # Otherwise, show the body with the max error
+                    body_to_display = max_error_body
+
+                if body_to_display and body_to_display.name in all_body_errors:
+                    h_err, a_err = all_body_errors[body_to_display.name]
+                    validation_wtext.text = (f"<b>Displaying: {body_to_display.name}</b> | "
+                                             f"Ang. Momentum Error (2nd Law): {h_err:.5f}% | "
+                                             f"Semi-Major Axis Error (3rd Law): {a_err:.5f}%")
+                else:
+                    validation_wtext.text = "Free camera. No body selected."
+
 
     except KeyboardInterrupt:
         print("\nSimulation stopped by user.")
@@ -582,6 +766,7 @@ def main():
 
     # Set up visualization
     scene = setup_scene()
+    plots = setup_plots()
 
     # Create all celestial bodies
     bodies = create_solar_system()
@@ -603,7 +788,7 @@ def main():
     print()
 
     # Start simulation
-    simulation_loop(bodies, dt_seconds, scene)
+    simulation_loop(bodies, dt_seconds, scene, plots)
 
 
 if __name__ == "__main__":
